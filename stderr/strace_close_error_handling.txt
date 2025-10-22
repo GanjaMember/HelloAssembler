@@ -1,0 +1,7 @@
+execve("./hello_assembler", ["./hello_assembler"], 0x7fff03f6abf0 /* 35 vars */) = 0
+open("hello_world.txt", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+write(3, "Hello World!\n", 13)          = 13
+close(3)                                = -1 ENOSYS (Function not implemented) (INJECTED)
+write(2, "Error: close() failed\n\0", 23) = 23
+exit(-38)                               = ?
++++ exited with 218 +++
