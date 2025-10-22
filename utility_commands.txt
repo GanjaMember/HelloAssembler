@@ -1,4 +1,5 @@
 nasm -f elf64 hello_assembler.asm -o hello_assembler.o
+nasm -f elf64 hello_assembler.asm -o hello_assembler.o -l listing.lst
 ld -o hello_assembler hello_assembler.o
 ./hello_assembler
 strace ./hello_assembler

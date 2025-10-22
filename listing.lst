@@ -1,0 +1,123 @@
+     1                                  ; Ошибки обработчиков ошибок не обрабатываются
+     2                                  
+     3                                  global _start                                           ; делаем метку _start видимой извне
+     4                                  
+     5                                  section .data                                           ; секция данных
+     6 00000000 48656C6C6F20576F72-         hello_msg db "Hello World!", 10                     ; строка для вывода на консоль, 10 - ascii код переноса строки
+     6 00000009 6C64210A           
+     7                                      hello_msg_len equ $ - hello_msg
+     8                                  
+     9 0000000D 68656C6C6F5F776F72-         outputfile db "hello_world.txt", 0                  ; объявление имени файла в формате asciz, 0 - ascii код null terminator
+     9 00000016 6C642E74787400     
+    10                                  
+    11 0000001D 4572726F723A206F70-         open_error_msg db "Error: open() failed", 10, 0
+    11 00000026 656E2829206661696C-
+    11 0000002F 65640A00           
+    12                                      open_error_msg_len equ $ - open_error_msg
+    13                                  
+    14 00000033 4572726F723A207772-         write_error_msg db "Error: write() failed", 10, 0
+    14 0000003C 697465282920666169-
+    14 00000045 6C65640A00         
+    15                                      write_error_msg_len equ $ - write_error_msg
+    16                                  
+    17 0000004A 4572726F723A20636C-         close_error_msg db "Error: close() failed", 10, 0
+    17 00000053 6F7365282920666169-
+    17 0000005C 6C65640A00         
+    18                                      close_error_msg_len equ $ - close_error_msg
+    19                                  
+    20                                  section .text                                           ; объявление секции кода
+    21                                  _start:                                                 ; точка входа в программу
+    22 00000000 4D31ED                      xor r13, r13                                        ; обнуляем r13, резервируем его для хранения кода ошибки
+    23                                  
+    24                                      ; Блок создания файла
+    25 00000003 B802000000                  mov rax, 2                                          ; 2 - номер системного вызова функции open
+    26 00000008 48BF-                       mov rdi, outputfile                                 ; передаём имя файла
+    26 0000000A [0D00000000000000] 
+    27                                      ; O_WRONLY - режим write-only
+    28                                      ; O_CREAT - если файла нету, то создать новый
+    29                                      ; O_TRUNC - если файл существует, то удалить содержимое
+    30 00000012 BE41020000                  mov rsi, 0x241                                      ; сумма флагов: O_CREAT | O_WRONLY | O_TRUNC (0x1 + 0x40 + 0x200)
+    31                                      ; rw- разрешаем создателю read и write,
+    32                                      ; r-- и r-- остальным read-only
+    33 00000017 BAA4010000                  mov rdx, 0644o                                      ; разрешения: rw-r--r--
+    34 0000001C 0F05                        syscall                                             ; выполняем системный вызов
+    35                                  
+    36                                      ; Обрабатываем ошибку
+    37 0000001E 4885C0                      test rax, rax                                       ; проверяем знаковый флаг
+    38 00000021 7823                        js open_error_handler                               ; js - "jump if sign flat is set"
+    39 00000023 4989C4                      mov r12, rax                                        ; сохраняем идентификатор файла
+    40                                  
+    41                                      ; Блок записи данных в файл
+    42 00000026 B801000000                  mov rax, 1                                          ; 1 - номер системного вызова функции write
+    43 0000002B 4C89E7                      mov rdi, r12                                        ; передаём идентификатор файла, полученный после выполнения open
+    44 0000002E 48BE-                       mov rsi, hello_msg                                  ; адрес строки для вывода
+    44 00000030 [0000000000000000] 
+    45 00000038 BA0D000000                  mov rdx, hello_msg_len                              ; количество байтов
+    46 0000003D 0F05                        syscall                                             ; выполняем системный вызов
+    47                                  
+    48 0000003F 4885C0                      test rax, rax                                       ; проверяем знаковый флаг
+    49 00000042 7825                        js write_error_handler                              ; js - "jump if sign flat is set"
+    50                                  
+    51                                      ; Блок закрытия файла
+    52 00000044 EB66                        jmp close_file
+    53                                  
+    54                                  open_error_handler:
+    55 00000046 4989C5                      mov r13, rax                                        ; сохраняем код ошибки
+    56                                  
+    57 00000049 B801000000                  mov rax, 1                                          ; 1 - номер системного вызова функции write
+    58 0000004E BF02000000                  mov rdi, 2                                          ; 2 - дескриптор файла стандартного вызова stderr
+    59 00000053 48BE-                       mov rsi, open_error_msg                             ; адрес строки для вывода
+    59 00000055 [1D00000000000000] 
+    60 0000005D BA16000000                  mov rdx, open_error_msg_len                         ; количество байтов
+    61 00000062 0F05                        syscall                                             ; выполняем системный вызов
+    62                                  
+    63 00000064 4C89E8                      mov rax, r13
+    64 00000067 EB5E                        jmp exit
+    65                                  
+    66                                  write_error_handler:
+    67 00000069 4989C5                      mov r13, rax                                        ; сохраняем код ошибки
+    68                                  
+    69 0000006C B801000000                  mov rax, 1                                          ; 1 - номер системного вызова функции write
+    70 00000071 BF02000000                  mov rdi, 2
+    71 00000076 48BE-                       mov rsi, write_error_msg
+    71 00000078 [3300000000000000] 
+    72 00000080 BA17000000                  mov rdx, write_error_msg_len
+    73 00000085 0F05                        syscall                                             ; выполняем системный вызов
+    74                                  
+    75 00000087 EB23                        jmp close_file
+    76                                  
+    77                                  close_error_handler:
+    78 00000089 4989C5                      mov r13, rax
+    79                                  
+    80 0000008C B801000000                  mov rax, 1                                          ; 1 - номер системного вызова функции write
+    81 00000091 BF02000000                  mov rdi, 2
+    82 00000096 48BE-                       mov rsi, close_error_msg
+    82 00000098 [4A00000000000000] 
+    83 000000A0 BA17000000                  mov rdx, close_error_msg_len
+    84 000000A5 0F05                        syscall                                             ; выполняем системный вызов
+    85                                  
+    86 000000A7 4C89E8                      mov rax, r13
+    87 000000AA EB1B                        jmp exit
+    88                                  
+    89                                  close_file:
+    90                                      ; Блок закрытия файла
+    91 000000AC B803000000                  mov rax, 3                                          ; 3 - номер системного вызова функции close
+    92 000000B1 4C89E7                      mov rdi, r12                                        ; указываем идентификатор файла
+    93 000000B4 0F05                        syscall                                             ; выполняем системный вызов
+    94                                  
+    95 000000B6 4885C0                      test rax, rax
+    96 000000B9 78CE                        js close_error_handler
+    97                                  
+    98 000000BB 4D85ED                      test r13, r13
+    99 000000BE 7802                        js save_write_error_code
+   100                                  
+   101 000000C0 EB05                        jmp exit
+   102                                  
+   103                                  save_write_error_code:
+   104 000000C2 4C89E8                      mov rax, r13
+   105 000000C5 EB00                        jmp exit
+   106                                  
+   107                                  exit:                                                   ; метка выхода
+   108 000000C7 4889C7                      mov rdi, rax                                        ; rax - хранит код выполнения программы
+   109 000000CA B83C000000                  mov rax, 60                                         ; 60 - номер системного вызова exit()
+   110 000000CF 0F05                        syscall                                             ; выполняем системный вызов
