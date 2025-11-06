@@ -1,0 +1,10 @@
+execve("./simple_sum", ["./simple_sum"], 0x7ffe2bbff990 /* 36 vars */) = 0
+write(1, "Enter 1 number: \0", 17)      = 17
+read(0, "1000\n", 6)                    = 5
+write(1, "Enter 2 number: \0", 17)      = 17
+read(0, "-7\n", 6)                      = 3
+write(1, "Answer: \0", 9)               = 9
+write(1, "993", 3)                      = 3
+write(1, "\n", 1)                       = 1
+exit(0)                                 = ?
++++ exited with 0 +++
