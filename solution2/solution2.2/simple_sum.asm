@@ -26,14 +26,15 @@ section .bss                         ; секция для глобальных 
     sum_str resb MAX_OUTPUT_STR_SIZE ; буфер для строки с суммой
 
 section .data                        ; секция для константных данных
-prompt1 db "Enter 1 number: ", 0     ; подсказка для ввода первого числа
-len_prompt1 equ $-prompt1            ; длина подсказки 1
+    ; Подсказки в консоли
+    prompt1 db "Enter 1 number: ", 0     ; подсказка для ввода первого числа
+    len_prompt1 equ $-prompt1            ; длина подсказки 1
 
-prompt2 db "Enter 2 number: ", 0     ; подсказка для ввода второго числа
-len_prompt2 equ $-prompt2            ; длина подсказки 2
+    prompt2 db "Enter 2 number: ", 0     ; подсказка для ввода второго числа
+    len_prompt2 equ $-prompt2            ; длина подсказки 2
 
-msg_result db "Answer: ", 0          ; сообщение перед выводом результата
-len_msg_result equ $-msg_result      ; длина сообщения
+    msg_result db "Answer: ", 0          ; сообщение перед выводом результата
+    len_msg_result equ $-msg_result      ; длина сообщения
 
 newline db 0x0A                       ; символ новой строки
 
@@ -52,7 +53,7 @@ section .text                        ; секция кода
 _start:                               ; точка входа программы
     xor r13, r13                      ; устанавливаем код завершения r13 = 0 (успех)
 
-    ; ---- Prompt 1 ----
+    ; ---- Промпт 1 ----
     mov rax, WRITE                     ; системный вызов write
     mov rdi, STDOUT                    ; дескриптор stdout
     lea rsi, [rel prompt1]             ; адрес буфера с подсказкой
@@ -63,12 +64,12 @@ _start:                               ; точка входа программы
     cmp rax, rdx                        ; проверяем, сколько байт записано
     jne write_byte_number_mismatch_handler ; если меньше ожидаемого, ошибка
 
-    ; ---- Read first number ----
+    ; ---- Считываем первое число ----
     lea rdi, [rel x1_str]              ; адрес буфера ввода строки
     lea rsi, [rel x1]                   ; адрес переменной для хранения числа
     call read_num                        ; вызов функции чтения и конвертации числа
 
-    ; ---- Prompt 2 ----
+    ; ---- Промпт 2 ----
     mov rax, WRITE
     mov rdi, STDOUT
     lea rsi, [rel prompt2]
@@ -79,18 +80,18 @@ _start:                               ; точка входа программы
     cmp rax, rdx
     jne write_byte_number_mismatch_handler
 
-    ; ---- Read second number ----
+    ; ---- Считываем второе число ----
     lea rdi, [rel x2_str]
     lea rsi, [rel x2]
     call read_num
 
-    ; ---- Add numbers ----
+    ; ---- Складываем числа ----
     movsx rax, word [rel x1]           ; расширяем первое число до 64 бит с сохранением знака
     movsx rbx, word [rel x2]           ; расширяем второе число до 64 бит с сохранением знака
     add rax, rbx                        ; складываем числа
     mov [rel x1], ax                     ; сохраняем результат в x1 (16 бит)
 
-    ; ---- Print result message ----
+    ; ---- Вывести подсказку к результату ----
     mov rax, WRITE
     mov rdi, STDOUT
     lea rsi, [rel msg_result]
@@ -101,13 +102,13 @@ _start:                               ; точка входа программы
     cmp rax, rdx
     jne write_byte_number_mismatch_handler
 
-    ; ---- Print sum ----
+    ; ---- Вывести сумму ----
     movsx rax, word [rel x1]            ; расширяем сумму до 64 бит
     lea rsi, [rel sum_str]               ; адрес буфера вывода
     mov rdx, MAX_OUTPUT_STR_SIZE
     call print_num                       ; вызов функции печати числа
 
-    ; ---- Print newline ----
+    ; ---- Добавить новую строку ----
     mov rax, WRITE
     mov rdi, STDOUT
     lea rsi, [rel newline]
@@ -118,7 +119,7 @@ _start:                               ; точка входа программы
     cmp rax, 1
     jne write_byte_number_mismatch_handler
 
-    ; ---- Exit ----
+    ; ---- Выход ----
     jmp exit                             ; завершение программы
 
 ;; ---------------------------

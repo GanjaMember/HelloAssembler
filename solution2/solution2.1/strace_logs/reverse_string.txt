@@ -1,5 +1,7 @@
-execve("./reverse_string", ["./reverse_string"], 0x7ffe46277220 /* 36 vars */) = 0
-read(0, "Hello World!\n", 100)          = 13
-write(1, "!dlroW olleH\n", 13)          = 13
+execve("./reverse_string", ["./reverse_string"], 0x7ffddad04d70 /* 36 vars */) = 0
+write(1, "Enter your string: \0", 20)   = 20
+read(0, "Hello World\n", 100)           = 12
+write(1, "Reversed: \0", 11)            = 11
+write(1, "dlroW olleH\n", 12)           = 12
 exit(0)                                 = ?
 +++ exited with 0 +++
