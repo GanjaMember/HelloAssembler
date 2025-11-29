@@ -1,0 +1,4 @@
+execve("./task1", ["./task1"], 0x7ffcc9be0d80 /* 37 vars */) = 0
+write(1, "Hello World!\n", 13)          = 13
+exit(0)                                 = ?
++++ exited with 0 +++
