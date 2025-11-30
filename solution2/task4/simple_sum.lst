@@ -1,309 +1,364 @@
-     1                                  ; Задача №2.2. Сумма двух чисел
+     1                                  ; Задача №2.2. Сумма двух 16-битных чисел
      2                                  
-     3                                  %define MAX_INPUT_STR_SIZE 6        ; максимальная длина строки ввода
-     4                                  %define MAX_OUTPUT_STR_SIZE 100     ; максимальная длина буфера вывода
-     5                                  
-     6                                  %define READ 0                       ; номер системного вызова read
-     7                                  %define WRITE 1                      ; номер системного вызова write
-     8                                  %define EXIT 60                      ; номер системного вызова exit
-     9                                  
-    10                                  %define STDIN 0                      ; дескриптор стандартного ввода
-    11                                  %define STDOUT 1                     ; дескриптор стандартного вывода
-    12                                  %define STDERR 2                     ; дескриптор стандартного потока ошибок
-    13                                  
-    14                                  %define NULL_CHAR 0                  ; нуль-терминатор
-    15                                  %define NEWLINE 0x0A                 ; символ перевода строки '\n'
-    16                                  %define ZERO_CHAR '0'                ; символ '0'
-    17                                  %define DASH_CHAR '-'                ; символ '-'
-    18                                  
-    19                                  global _start                        ; точка входа программы
-    20                                  
-    21                                  section .bss                         ; секция для глобальных неинициализированных переменных
-    22 00000000 ????????????                x1_str resb MAX_INPUT_STR_SIZE   ; буфер для первой введённой строки
-    23 00000006 ????????????                x2_str resb MAX_INPUT_STR_SIZE   ; буфер для второй введённой строки
-    24 0000000C ????                        x1 resw 1                        ; переменная для хранения первого числа (16 бит)
-    25 0000000E ????                        x2 resw 1                        ; переменная для хранения второго числа (16 бит)
-    26 00000010 <res 64h>                   sum_str resb MAX_OUTPUT_STR_SIZE ; буфер для строки с суммой
-    27                                  
-    28                                  section .data                        ; секция для константных данных
-    29 00000000 456E7465722031206E-     prompt1 db "Enter 1 number: ", 0     ; подсказка для ввода первого числа
-    29 00000009 756D6265723A2000   
-    30                                  len_prompt1 equ $-prompt1            ; длина подсказки 1
+     3                                  ; (*) Ошибки обработчиков ошибок не обрабатываются
+     4                                  ; (*) r13 зарезервирован под код выполнения программы:
+     5                                  ;   r13 = 0 - Успешное выполнение программы
+     6                                  ;   r13 > 0 - Количество записанных байт не соотвествует ожидаемому значению
+     7                                  ;   r13 < 0 - Системный вызов провалился
+     8                                  
+     9                                  %define MAX_INPUT_STR_SIZE 6                            ; максимальная длина строки ввода
+    10                                  %define MAX_OUTPUT_STR_SIZE 100                         ; максимальная длина буфера вывода
+    11                                  
+    12                                  %define READ 0                                          ; номер системного вызова read
+    13                                  %define WRITE 1                                         ; номер системного вызова write
+    14                                  %define EXIT 60                                         ; номер системного вызова exit
+    15                                  
+    16                                  %define STDIN 0                                         ; дескриптор стандартного ввода
+    17                                  %define STDOUT 1                                        ; дескриптор стандартного вывода
+    18                                  %define STDERR 2                                        ; дескриптор стандартного потока ошибок
+    19                                  
+    20                                  %define NULL_CHAR 0                                     ; нуль-терминатор
+    21                                  %define NEWLINE 0x0A                                    ; символ перевода строки '\n'
+    22                                  
+    23                                  global _start                                           ; точка входа программы
+    24                                  
+    25                                  section .bss                                            ; секция для глобальных неинициализированных переменных
+    26 00000000 ????????????                x1_str resb MAX_INPUT_STR_SIZE                      ; буфер для первой введённой строки
+    27 00000006 ????????????                x2_str resb MAX_INPUT_STR_SIZE                      ; буфер для второй введённой строки
+    28 0000000C ????                        x1 resw 1                                           ; переменная для хранения первого числа (16 бит)
+    29 0000000E ????                        x2 resw 1                                           ; переменная для хранения второго числа (16 бит)
+    30 00000010 <res 64h>                   sum_str resb MAX_OUTPUT_STR_SIZE                    ; буфер для строки с суммой
     31                                  
-    32 00000011 456E7465722032206E-     prompt2 db "Enter 2 number: ", 0     ; подсказка для ввода второго числа
-    32 0000001A 756D6265723A2000   
-    33                                  len_prompt2 equ $-prompt2            ; длина подсказки 2
-    34                                  
-    35 00000022 416E737765723A2000      msg_result db "Answer: ", 0          ; сообщение перед выводом результата
-    36                                  len_msg_result equ $-msg_result      ; длина сообщения
-    37                                  
-    38 0000002B 0A                      newline db 0x0A                       ; символ новой строки
+    32                                  section .data                                           ; секция для константных данных
+    33                                      ; Подсказки в консоли
+    34 00000000 456E7465722031206E-         prompt1 db "Enter 1 number: ", NULL_CHAR            ; подсказка для ввода первого числа
+    34 00000009 756D6265723A2000   
+    35                                      len_prompt1 equ $-prompt1                           ; длина подсказки 1
+    36                                  
+    37 00000011 456E7465722032206E-         prompt2 db "Enter 2 number: ", NULL_CHAR            ; подсказка для ввода второго числа
+    37 0000001A 756D6265723A2000   
+    38                                      len_prompt2 equ $-prompt2                           ; длина подсказки 2
     39                                  
-    40                                  ; Сообщения об ошибках
-    41 0000002C 4572726F723A207772-     write_failed_msg db "Error: write() failed", 10, 0
-    41 00000035 697465282920666169-
-    41 0000003E 6C65640A00         
-    42                                  write_failed_msg_len equ $-write_failed_msg
-    43                                  
-    44 00000043 4572726F723A207772-     write_byte_number_mismatch_msg db "Error: write() write wrong number of bytes", 10, 0
-    44 0000004C 697465282920777269-
-    44 00000055 74652077726F6E6720-
-    44 0000005E 6E756D626572206F66-
-    44 00000067 2062797465730A00   
-    45                                  write_byte_number_mismatch_msg_len equ $-write_byte_number_mismatch_msg
-    46                                  
-    47 0000006F 4572726F723A207265-     read_failed_msg db "Error: read() failed", 10, 0
-    47 00000078 61642829206661696C-
-    47 00000081 65640A00           
-    48                                  read_failed_msg_len equ $-read_failed_msg
-    49                                  
-    50                                  section .text                        ; секция кода
+    40 00000022 416E737765723A2000          msg_result db "Answer: ", NULL_CHAR                 ; сообщение перед выводом результата
+    41                                      len_msg_result equ $-msg_result                     ; длина сообщения
+    42                                  
+    43 0000002B 0A                          newline db 0x0A                                     ; символ новой строки
+    44                                  
+    45                                      ; Сообщения об ошибках
+    46 0000002C 4572726F723A207772-         write_failed_msg db "Error: write() failed", NEWLINE, NULL_CHAR
+    46 00000035 697465282920666169-
+    46 0000003E 6C65640A00         
+    47                                      write_failed_msg_len equ $-write_failed_msg
+    48                                  
+    49 00000043 4572726F723A207772-         write_byte_number_mismatch_msg db "Error: write() write wrong number of bytes", NEWLINE, NULL_CHAR
+    49 0000004C 697465282920777269-
+    49 00000055 74652077726F6E6720-
+    49 0000005E 6E756D626572206F66-
+    49 00000067 2062797465730A00   
+    50                                      write_byte_number_mismatch_msg_len equ $-write_byte_number_mismatch_msg
     51                                  
-    52                                  _start:                               ; точка входа программы
-    53 00000000 4D31ED                      xor r13, r13                      ; устанавливаем код завершения r13 = 0 (успех)
+    52 0000006F 4572726F723A207265-         read_failed_msg db "Error: read() failed", NEWLINE, NULL_CHAR
+    52 00000078 61642829206661696C-
+    52 00000081 65640A00           
+    53                                      read_failed_msg_len equ $-read_failed_msg
     54                                  
-    55                                      ; ---- Prompt 1 ----
-    56 00000003 B801000000                  mov rax, WRITE                     ; системный вызов write
-    57 00000008 BF01000000                  mov rdi, STDOUT                    ; дескриптор stdout
-    58 0000000D 488D35(00000000)            lea rsi, [rel prompt1]             ; адрес буфера с подсказкой
-    59 00000014 BA11000000                  mov rdx, len_prompt1               ; длина подсказки
-    60 00000019 0F05                        syscall                             ; выполнить системный вызов
-    61 0000001B 4885C0                      test rax, rax                       ; проверяем возвращённое значение
-    62 0000001E 0F882C020000                js write_failed_handler             ; если < 0, перейти к обработчику ошибки
-    63 00000024 4839D0                      cmp rax, rdx                        ; проверяем, сколько байт записано
-    64 00000027 0F8543020000                jne write_byte_number_mismatch_handler ; если меньше ожидаемого, ошибка
-    65                                  
-    66                                      ; ---- Read first number ----
-    67 0000002D 488D3D(00000000)            lea rdi, [rel x1_str]              ; адрес буфера ввода строки
-    68 00000034 488D35(0C000000)            lea rsi, [rel x1]                   ; адрес переменной для хранения числа
-    69 0000003B E8CA000000                  call read_num                        ; вызов функции чтения и конвертации числа
-    70                                  
-    71                                      ; ---- Prompt 2 ----
-    72 00000040 B801000000                  mov rax, WRITE
-    73 00000045 BF01000000                  mov rdi, STDOUT
-    74 0000004A 488D35(11000000)            lea rsi, [rel prompt2]
-    75 00000051 BA11000000                  mov rdx, len_prompt2
-    76 00000056 0F05                        syscall
-    77 00000058 4885C0                      test rax, rax
-    78 0000005B 0F88EF010000                js write_failed_handler
-    79 00000061 4839D0                      cmp rax, rdx
-    80 00000064 0F8506020000                jne write_byte_number_mismatch_handler
-    81                                  
-    82                                      ; ---- Read second number ----
-    83 0000006A 488D3D(06000000)            lea rdi, [rel x2_str]
-    84 00000071 488D35(0E000000)            lea rsi, [rel x2]
-    85 00000078 E88D000000                  call read_num
-    86                                  
-    87                                      ; ---- Add numbers ----
-    88 0000007D 480FBF05(0C000000)          movsx rax, word [rel x1]           ; расширяем первое число до 64 бит с сохранением знака
-    89 00000085 480FBF1D(0E000000)          movsx rbx, word [rel x2]           ; расширяем второе число до 64 бит с сохранением знака
-    90 0000008D 4801D8                      add rax, rbx                        ; складываем числа
-    91 00000090 668905(0C000000)            mov [rel x1], ax                     ; сохраняем результат в x1 (16 бит)
-    92                                  
-    93                                      ; ---- Print result message ----
-    94 00000097 B801000000                  mov rax, WRITE
-    95 0000009C BF01000000                  mov rdi, STDOUT
-    96 000000A1 488D35(22000000)            lea rsi, [rel msg_result]
-    97 000000A8 BA09000000                  mov rdx, len_msg_result
-    98 000000AD 0F05                        syscall
-    99 000000AF 4885C0                      test rax, rax
-   100 000000B2 0F8898010000                js write_failed_handler
-   101 000000B8 4839D0                      cmp rax, rdx
-   102 000000BB 0F85AF010000                jne write_byte_number_mismatch_handler
-   103                                  
-   104                                      ; ---- Print sum ----
-   105 000000C1 480FBF05(0C000000)          movsx rax, word [rel x1]            ; расширяем сумму до 64 бит
-   106 000000C9 488D35(10000000)            lea rsi, [rel sum_str]               ; адрес буфера вывода
-   107 000000D0 BA64000000                  mov rdx, MAX_OUTPUT_STR_SIZE
-   108 000000D5 E8BB000000                  call print_num                       ; вызов функции печати числа
-   109                                  
-   110                                      ; ---- Print newline ----
-   111 000000DA B801000000                  mov rax, WRITE
-   112 000000DF BF01000000                  mov rdi, STDOUT
-   113 000000E4 488D35(2B000000)            lea rsi, [rel newline]
-   114 000000EB BA01000000                  mov rdx, 1
-   115 000000F0 0F05                        syscall
-   116 000000F2 4885C0                      test rax, rax
-   117 000000F5 0F8855010000                js write_failed_handler
-   118 000000FB 4883F801                    cmp rax, 1
-   119 000000FF 0F856B010000                jne write_byte_number_mismatch_handler
+    55                                  section .text                                           ; секция кода
+    56                                  
+    57                                  _start:                                                 ; точка входа программы
+    58 00000000 4D31ED                      xor r13, r13                                        ; устанавливаем код завершения r13 = 0 (успех)
+    59                                  
+    60                                      ; ---- Промпт 1 ----
+    61 00000003 B801000000                  mov rax, WRITE                                      ; системный вызов write
+    62 00000008 BF01000000                  mov rdi, STDOUT                                     ; дескриптор stdout
+    63 0000000D 488D35(00000000)            lea rsi, [rel prompt1]                              ; адрес буфера с подсказкой
+    64 00000014 BA11000000                  mov rdx, len_prompt1                                ; длина подсказки
+    65 00000019 0F05                        syscall                                             ; выполнить системный вызов
+    66                                  
+    67 0000001B 4885C0                      test rax, rax                                       ; проверка возвращенного значения rax (кол-во записанных байт)
+    68 0000001E 0F881A020000                js write_failed_handler                             ; если rax < 0 (ошибка), прыжок к обработчику ошибки записи
+    69                                  
+    70 00000024 4839D0                      cmp rax, rdx                                        ; проверяем, совпадает ли количество записанных байт с ожидаемым
+    71 00000027 0F852E020000                jne write_byte_number_mismatch_handler              ; если нет, прыжок к обработчику несоответствия байт
+    72                                  
+    73                                      ; ---- Считываем первое число ----
+    74 0000002D 488D3D(00000000)            lea rdi, [rel x1_str]                               ; адрес буфера ввода строки
+    75 00000034 488D35(0C000000)            lea rsi, [rel x1]                                   ; адрес переменной для хранения числа
+    76 0000003B E8CA000000                  call read_num                                       ; вызов функции чтения и конвертации числа
+    77                                  
+    78                                      ; ---- Промпт 2 ----
+    79 00000040 B801000000                  mov rax, WRITE
+    80 00000045 BF01000000                  mov rdi, STDOUT
+    81 0000004A 488D35(11000000)            lea rsi, [rel prompt2]
+    82 00000051 BA11000000                  mov rdx, len_prompt2
+    83 00000056 0F05                        syscall
+    84                                  
+    85 00000058 4885C0                      test rax, rax                                       ; проверка возвращенного значения rax (кол-во записанных байт)
+    86 0000005B 0F88DD010000                js write_failed_handler                             ; если rax < 0 (ошибка), прыжок к обработчику ошибки записи
+    87                                  
+    88 00000061 4839D0                      cmp rax, rdx                                        ; проверяем, совпадает ли количество записанных байт с ожидаемым
+    89 00000064 0F85F1010000                jne write_byte_number_mismatch_handler              ; если нет, прыжок к обработчику несоответствия байт
+    90                                  
+    91                                      ; ---- Считываем второе число ----
+    92 0000006A 488D3D(06000000)            lea rdi, [rel x2_str]                               ; адрес буфера ввода строки
+    93 00000071 488D35(0E000000)            lea rsi, [rel x2]                                   ; адрес переменной для хранения числа
+    94 00000078 E88D000000                  call read_num
+    95                                  
+    96                                      ; ---- Складываем числа ----
+    97 0000007D 480FBF05(0C000000)          movsx rax, word [rel x1]                            ; расширяем первое число до 64 бит с сохранением знака
+    98 00000085 480FBF1D(0E000000)          movsx rbx, word [rel x2]                            ; расширяем второе число до 64 бит с сохранением знака
+    99 0000008D 4801D8                      add rax, rbx                                        ; складываем числа
+   100 00000090 668905(0C000000)            mov [rel x1], ax                                    ; сохраняем результат в x1 (16 бит)
+   101                                  
+   102                                      ; ---- Вывести подсказку к результату ----
+   103 00000097 B801000000                  mov rax, WRITE
+   104 0000009C BF01000000                  mov rdi, STDOUT
+   105 000000A1 488D35(22000000)            lea rsi, [rel msg_result]
+   106 000000A8 BA09000000                  mov rdx, len_msg_result
+   107 000000AD 0F05                        syscall
+   108                                  
+   109 000000AF 4885C0                      test rax, rax                                       ; проверка возвращенного значения rax (кол-во записанных байт)
+   110 000000B2 0F8886010000                js write_failed_handler                             ; если rax < 0 (ошибка), прыжок к обработчику ошибки записи
+   111                                  
+   112 000000B8 4839D0                      cmp rax, rdx                                        ; проверяем, совпадает ли количество записанных байт с ожидаемым
+   113 000000BB 0F859A010000                jne write_byte_number_mismatch_handler              ; если нет, прыжок к обработчику несоответствия байт
+   114                                  
+   115                                      ; ---- Вывести сумму ----
+   116 000000C1 480FBF05(0C000000)          movsx rax, word [rel x1]                            ; расширяем сумму до 64 бит
+   117 000000C9 488D35(10000000)            lea rsi, [rel sum_str]                              ; адрес буфера вывода
+   118 000000D0 BA64000000                  mov rdx, MAX_OUTPUT_STR_SIZE
+   119 000000D5 E8BD000000                  call print_num                                      ; вызов функции печати числа
    120                                  
-   121                                      ; ---- Exit ----
-   122 00000105 E9A6010000                  jmp exit                             ; завершение программы
-   123                                  
-   124                                  ;; ---------------------------
-   125                                  ;; read_num: чтение строки и конвертация в число
-   126                                  read_num:
-   127 0000010A 55                          push rbp                             ; сохраняем rbp
-   128 0000010B 4889E5                      mov rbp, rsp                          ; устанавливаем новый базовый указатель
-   129 0000010E 4154                        push r12                              ; сохраняем r12
-   130 00000110 4989F4                      mov r12, rsi                           ; r12 = адрес переменной для хранения числа
-   131 00000113 4889FB                      mov rbx, rdi                           ; rbx = адрес буфера ввода
-   132                                  
-   133 00000116 B800000000                  mov rax, READ
-   134 0000011B BF00000000                  mov rdi, STDIN
-   135 00000120 4889DE                      mov rsi, rbx
-   136 00000123 BA06000000                  mov rdx, MAX_INPUT_STR_SIZE
-   137 00000128 0F05                        syscall
-   138 0000012A 4885C0                      test rax, rax
-   139 0000012D 0F885D010000                js read_failed_handler               ; если ошибка чтения
-   140                                  
-   141 00000133 4889C1                      mov rcx, rax
-   142 00000136 48FFC9                      dec rcx
-   143 00000139 8A040B                      mov al, [rbx + rcx]
-   144 0000013C 3C0A                        cmp al, NEWLINE
-   145 0000013E 7504                        jne .no_newline
-   146 00000140 C6040B00                    mov byte [rbx + rcx], 0             ; заменяем '\n' на нуль-терминатор
-   147                                  .no_newline:
-   148 00000144 4889DF                      mov rdi, rbx
-   149 00000147 E80D000000                  call str_to_num                      ; конвертация строки в число
-   150 0000014C 480FBFC0                    movsx rax, ax
-   151 00000150 6641890424                  mov [r12], ax                         ; сохраняем результат
+   121                                      ; ---- Добавить новую строку ----
+   122 000000DA B801000000                  mov rax, WRITE
+   123 000000DF BF01000000                  mov rdi, STDOUT
+   124 000000E4 488D35(2B000000)            lea rsi, [rel newline]
+   125 000000EB BA01000000                  mov rdx, 1
+   126 000000F0 0F05                        syscall
+   127                                  
+   128 000000F2 4885C0                      test rax, rax                                       ; проверка возвращенного значения rax (кол-во записанных байт)
+   129 000000F5 0F8843010000                js write_failed_handler                             ; если rax < 0 (ошибка), прыжок к обработчику ошибки записи
+   130                                  
+   131 000000FB 4883F801                    cmp rax, 1                                          ; проверяем, совпадает ли количество записанных байт с ожидаемым
+   132 000000FF 0F8556010000                jne write_byte_number_mismatch_handler              ; если нет, прыжок к обработчику несоответствия байт
+   133                                  
+   134                                      ; ---- Выход ----
+   135 00000105 E98B010000                  jmp exit                                            ; завершение программы
+   136                                  
+   137                                  ; --------------------------------------------------
+   138                                  ; Функция read_num: чтение строки и конвертация в число
+   139                                  ; rdi = адрес введенной строки
+   140                                  ; rsi = адрес переменной для хранения числа
+   141                                  ; --------------------------------------------------
+   142                                  read_num:
+   143 0000010A 55                          push rbp                                            ; сохраняем rbp
+   144 0000010B 4889E5                      mov rbp, rsp                                        ; устанавливаем новый базовый указатель
+   145                                  
+   146                                      ; сохраняем callee-saved регистры
+   147 0000010E 4154                        push r12
+   148 00000110 53                          push rbx
+   149                                  
+   150 00000111 4889FB                      mov rbx, rdi                                        ; rbx = адрес буфера ввода
+   151 00000114 4989F4                      mov r12, rsi                                        ; r12 = адрес переменной для хранения числа
    152                                  
-   153 00000155 415C                        pop r12
-   154 00000157 5D                          pop rbp
-   155 00000158 C3                          ret
-   156                                  
-   157                                  ;; ---------------------------
-   158                                  ;; str_to_num: конвертация строки в знаковое число
-   159                                  str_to_num:
-   160 00000159 55                          push rbp
-   161 0000015A 4889E5                      mov rbp, rsp
-   162 0000015D 4831C0                      xor rax, rax
-   163 00000160 4831D2                      xor rdx, rdx
-   164 00000163 4889FE                      mov rsi, rdi
-   165 00000166 8A1E                        mov bl, [rsi]
-   166 00000168 80FB2D                      cmp bl, DASH_CHAR
-   167 0000016B 7505                        jne .parse_loop
-   168 0000016D B201                        mov dl, 1
-   169 0000016F 48FFC6                      inc rsi
-   170                                  .parse_loop:
-   171 00000172 8A1E                        mov bl, [rsi]
-   172 00000174 80FB00                      cmp bl, NULL_CHAR
-   173 00000177 7413                        je .done_parse
-   174 00000179 80EB30                      sub bl, ZERO_CHAR
-   175 0000017C 486BC00A                    imul rax, rax, 10
-   176 00000180 480FB6DB                    movzx rbx, bl
-   177 00000184 4801D8                      add rax, rbx
-   178 00000187 48FFC6                      inc rsi
-   179 0000018A EBE6                        jmp .parse_loop
-   180                                  .done_parse:
-   181 0000018C 84D2                        test dl, dl
-   182 0000018E 7403                        jz .ret_parse
-   183 00000190 48F7D8                      neg rax
-   184                                  .ret_parse:
-   185 00000193 5D                          pop rbp
-   186 00000194 C3                          ret
-   187                                  
-   188                                  ;; ---------------------------
-   189                                  ;; print_num: вывод числа
-   190                                  print_num:
-   191 00000195 55                          push rbp
-   192 00000196 4889E5                      mov rbp, rsp
-   193 00000199 4889C7                      mov rdi, rax                         ; число для вывода
-   194 0000019C 488D35(10000000)            lea rsi, [rel sum_str]               ; буфер для строки
-   195 000001A3 BA64000000                  mov rdx, MAX_OUTPUT_STR_SIZE
-   196 000001A8 E842000000                  call num_to_str                       ; конвертация числа в строку
-   197 000001AD 4889C7                      mov rdi, rax                          ; указатель на строку
-   198 000001B0 E826000000                  call strlen                            ; вычисление длины строки
-   199 000001B5 4889C2                      mov rdx, rax                          ; длина для write
-   200 000001B8 4889FE                      mov rsi, rdi                          ; указатель на строку
-   201 000001BB B801000000                  mov rax, WRITE
-   202 000001C0 BF01000000                  mov rdi, STDOUT
-   203 000001C5 0F05                        syscall
-   204 000001C7 4885C0                      test rax, rax
-   205 000001CA 0F8880000000                js write_failed_handler
-   206 000001D0 4839D0                      cmp rax, rdx
-   207 000001D3 0F8597000000                jne write_byte_number_mismatch_handler
-   208 000001D9 5D                          pop rbp
-   209 000001DA C3                          ret
-   210                                  
-   211                                  ;; ---------------------------
-   212                                  strlen:
-   213 000001DB 55                          push rbp
-   214 000001DC 4889E5                      mov rbp, rsp
-   215 000001DF 4831C0                      xor rax, rax
-   216                                  .next_chr:
-   217 000001E2 803C0700                    cmp byte [rdi + rax], 0
-   218 000001E6 7405                        je .done_strlen
-   219 000001E8 48FFC0                      inc rax
-   220 000001EB EBF5                        jmp .next_chr
-   221                                  .done_strlen:
-   222 000001ED 5D                          pop rbp
-   223 000001EE C3                          ret
-   224                                  
-   225                                  num_to_str:
-   226 000001EF 55                          push rbp
-   227 000001F0 4889E5                      mov rbp, rsp
-   228 000001F3 4889F8                      mov rax, rdi                          ; число
-   229 000001F6 4989F2                      mov r10, rsi                           ; буфер
-   230 000001F9 4989D3                      mov r11, rdx                           ; размер буфера
-   231 000001FC 4F8D641AFF                  lea r12, [r10 + r11 - 1]               ; конец буфера
-   232 00000201 41C6042400                  mov byte [r12], 0                       ; нуль-терминатор
-   233 00000206 4D31C9                      xor r9, r9                              ; флаг отрицательного числа
-   234 00000209 4885C0                      test rax, rax
-   235 0000020C 7906                        jns .conv_start
-   236 0000020E 41B101                      mov r9b, 1
-   237 00000211 48F7D8                      neg rax
-   238                                  .conv_start:
-   239 00000214 4883F800                    cmp rax, 0
-   240 00000218 750A                        jne .loop_div
-   241 0000021A 49FFCC                      dec r12
-   242 0000021D 41C6042430                  mov byte [r12], '0'
-   243 00000222 EB1A                        jmp .maybe_sign
-   244                                  .loop_div:
-   245 00000224 4831D2                      xor rdx, rdx
-   246 00000227 B90A000000                  mov rcx, 10
-   247 0000022C 48F7F1                      div rcx
-   248 0000022F 80C230                      add dl, ZERO_CHAR
-   249 00000232 49FFCC                      dec r12
-   250 00000235 41881424                    mov [r12], dl
-   251 00000239 4885C0                      test rax, rax
-   252 0000023C 75E6                        jnz .loop_div
-   253                                  .maybe_sign:
-   254 0000023E 4584C9                      test r9b, r9b
-   255 00000241 7408                        jz .finish_return
-   256 00000243 49FFCC                      dec r12
-   257 00000246 41C604242D                  mov byte [r12], DASH_CHAR
-   258                                  .finish_return:
-   259 0000024B 4C89E0                      mov rax, r12                          ; возвращаем указатель на начало строки
-   260 0000024E 5D                          pop rbp
-   261 0000024F C3                          ret
-   262                                  
-   263                                  ; ----------------------------
-   264                                  ; Обработчики ошибок
-   265                                  ; ----------------------------
-   266                                  write_failed_handler:                     ; ошибка write()
-   267 00000250 4989C5                      mov r13, rax                          ; сохраняем код ошибки
-   268 00000253 B801000000                  mov rax, WRITE
-   269 00000258 BF02000000                  mov rdi, STDERR
-   270 0000025D 48BE-                       mov rsi, write_failed_msg
-   270 0000025F [2C00000000000000] 
-   271 00000267 BA17000000                  mov rdx, write_failed_msg_len
-   272 0000026C 0F05                        syscall
-   273 0000026E EB40                        jmp exit
-   274                                  
-   275                                  write_byte_number_mismatch_handler:       ; ошибка несоответствия количества байт
-   276 00000270 4989C5                      mov r13, rax
-   277 00000273 B801000000                  mov rax, WRITE
-   278 00000278 BF02000000                  mov rdi, STDERR
-   279 0000027D 48BE-                       mov rsi, write_byte_number_mismatch_msg
-   279 0000027F [4300000000000000] 
-   280 00000287 BA2C000000                  mov rdx, write_byte_number_mismatch_msg_len
-   281 0000028C 0F05                        syscall
-   282 0000028E EB20                        jmp exit
-   283                                  
-   284                                  read_failed_handler:                       ; ошибка read()
-   285 00000290 4989C5                      mov r13, rax
-   286 00000293 B801000000                  mov rax, WRITE
-   287 00000298 BF02000000                  mov rdi, STDERR
-   288 0000029D 48BE-                       mov rsi, read_failed_msg
-   288 0000029F [6F00000000000000] 
-   289 000002A7 BA16000000                  mov rdx, read_failed_msg_len
-   290 000002AC 0F05                        syscall
-   291 000002AE EB00                        jmp exit
-   292                                  
-   293                                  exit:                                     ; завершение программы
-   294 000002B0 4C89EF                      mov rdi, r13                           ; код завершения программы
-   295 000002B3 B83C000000                  mov rax, EXIT
-   296 000002B8 0F05                        syscall
+   153 00000117 B800000000                  mov rax, READ                                       ; передаем номер системного вызова
+   154 0000011C BF00000000                  mov rdi, STDIN                                      ; передаём дескриптор входного потока
+   155 00000121 4889DE                      mov rsi, rbx                                        ; адрес буфера для сохранения введенной строки
+   156 00000124 BA06000000                  mov rdx, MAX_INPUT_STR_SIZE                         ; количество байтов для чтения
+   157 00000129 0F05                        syscall                                             ; выполнить системный вызов read
+   158                                  
+   159                                  
+   160 0000012B 4885C0                      test rax, rax
+   161 0000012E 0F8844010000                js read_failed_handler                              ; если ошибка чтения
+   162                                  
+   163 00000134 4889C1                      mov rcx, rax                                        ; сохраняем длину строки
+   164 00000137 48FFC9                      dec rcx                                             ; делаем указателем на последний индекс
+   165 0000013A 8A040B                      mov al, [rbx + rcx]                                 ; сохраняем последний символ в регистр
+   166 0000013D 3C0A                        cmp al, NEWLINE                                     ; проверяем на '\n'
+   167 0000013F 7504                        jne .no_newline
+   168 00000141 C6040B00                    mov byte [rbx + rcx], NULL_CHAR                     ; заменяем '\n' на нуль-терминатор
+   169                                  
+   170                                  .no_newline:
+   171 00000145 4889DF                      mov rdi, rbx
+   172 00000148 E80E000000                  call str_to_num                                     ; конвертация строки в число
+   173 0000014D 480FBFC0                    movsx rax, ax
+   174 00000151 6641890424                  mov [r12], ax                                       ; сохраняем результат по адресу в указателе
+   175                                  
+   176 00000156 5B                          pop rbx
+   177 00000157 415C                        pop r12
+   178 00000159 5D                          pop rbp
+   179 0000015A C3                          ret
+   180                                  
+   181                                  ; --------------------------------------------------
+   182                                  ; Функция str_to_num: конвертация строки в знаковое число
+   183                                  ; rdi = адрес строки
+   184                                  ; --------------------------------------------------
+   185                                  str_to_num:
+   186 0000015B 55                          push rbp                                            ; сохраняем rbp
+   187 0000015C 4889E5                      mov rbp, rsp                                        ; устанавливаем новый базовый указатель
+   188                                  
+   189 0000015F 4831C0                      xor rax, rax                                        ; обнуляем rax
+   190 00000162 4831D2                      xor rdx, rdx                                        ; обнуляем rdx
+   191 00000165 4889FE                      mov rsi, rdi                                        ; сохраняем адрес строки
+   192                                  
+   193 00000168 8A1E                        mov bl, [rsi]                                       ; сохраняем символ по нулевому индексу
+   194 0000016A 80FB2D                      cmp bl, '-'                                         ; проверяем на минус
+   195 0000016D 7505                        jne .parse_loop                                     ; если минуса нету, то сразу переходим к преобразованию
+   196 0000016F B201                        mov dl, 1                                           ; устанавливаем флаг "отрицательное число" в 1
+   197 00000171 48FFC6                      inc rsi                                             ; пропускаем знак минуса
+   198                                  .parse_loop:
+   199 00000174 8A1E                        mov bl, [rsi]                                       ; сохраняем текущий символ из адреса в указателе
+   200 00000176 80FB00                      cmp bl, NULL_CHAR                                   ; итерируемся до null-терминатора
+   201 00000179 7413                        je .done_parse                                      ; если дошли до '\0', то цикл заканчивается
+   202 0000017B 80EB30                      sub bl, '0'                                         ; переводим символ цифры в число
+   203 0000017E 486BC00A                    imul rax, rax, 10                                   ; знаковое умножение: arg1 - регистр результата, arg2 - регистр множителя, arg3 - константа
+   204 00000182 480FB6DB                    movzx rbx, bl                                       ; movzx - move zero extended, расширяем нулями 8-битный регистр до 64-битного
+   205 00000186 4801D8                      add rax, rbx                                        ; прибавляем цифру в конец числа                 
+   206 00000189 48FFC6                      inc rsi                                             ; увеличиваем индекс
+   207 0000018C EBE6                        jmp .parse_loop
+   208                                  .done_parse:
+   209 0000018E 84D2                        test dl, dl                                         ; проверка флага "отрицательного числа"
+   210 00000190 7403                        jz .finish_return
+   211 00000192 48F7D8                      neg rax                                             ; инвертируем знак числа
+   212                                  .finish_return:
+   213 00000195 5D                          pop rbp
+   214 00000196 C3                          ret
+   215                                  
+   216                                  ; --------------------------------------------------
+   217                                  ; Функция read_num: вывод числа
+   218                                  ; rax = число
+   219                                  ; rsi = адрес буфера вывода
+   220                                  ; rdi = количество байт для вывода
+   221                                  ; --------------------------------------------------
+   222                                  print_num:
+   223 00000197 55                          push rbp
+   224 00000198 4889E5                      mov rbp, rsp
+   225                                  
+   226 0000019B 4889FA                      mov rdx, rdi                                        ; передаем количество байт для вывода в num_to_str
+   227 0000019E 4889C7                      mov rdi, rax                                        ; передаем число в num_to_str
+   228                                      ; также передаём rsi и rdx
+   229 000001A1 E82A000000                  call num_to_str                                     ; конвертация числа в строку
+   230                                  
+   231 000001A6 4889C7                      mov rdi, rax                                        ; указатель на первый байт новой строки
+   232 000001A9 E87C000000                  call strlen                                         ; вычисление длины строки
+   233 000001AE 4889C2                      mov rdx, rax                                        ; длина для write
+   234 000001B1 4889FE                      mov rsi, rdi                                        ; указатель на строку
+   235 000001B4 B801000000                  mov rax, WRITE
+   236 000001B9 BF01000000                  mov rdi, STDOUT
+   237 000001BE 0F05                        syscall
+   238                                  
+   239 000001C0 4885C0                      test rax, rax                                       ; проверка возвращенного значения rax (кол-во записанных байт)
+   240 000001C3 7879                        js write_failed_handler                             ; если rax < 0 (ошибка), прыжок к обработчику ошибки записи
+   241                                  
+   242 000001C5 4839D0                      cmp rax, rdx                                        ; проверяем, совпадает ли количество записанных байт с ожидаемым
+   243 000001C8 0F858D000000                jne write_byte_number_mismatch_handler              ; если нет, прыжок к обработчику несоответствия байт
+   244                                  
+   245 000001CE 5D                          pop rbp
+   246 000001CF C3                          ret
+   247                                  
+   248                                  ; --------------------------------------------------
+   249                                  ; Функция num_to_str: конвертация числа в строку
+   250                                  ; rdi = число
+   251                                  ; rsi = адрес строки результата
+   252                                  ; rdx = размер строки результата
+   253                                  ; Возвращает в rax: указатель на первый байт новой строки
+   254                                  ; --------------------------------------------------
+   255                                  num_to_str:
+   256 000001D0 55                          push rbp
+   257 000001D1 4889E5                      mov rbp, rsp
+   258                                  
+   259 000001D4 4889F8                      mov rax, rdi                                        ; сохраняем число в rax для дальнейшего div
+   260 000001D7 4989D2                      mov r10, rdx                                        ; сохраняем параметр
+   261                                  
+   262 000001DA 4E8D5C16FF                  lea r11, [rsi + r10 - 1]                            ; сохраняем адрес последнего индекса буфера
+   263 000001DF 41C60300                    mov byte [r11], NULL_CHAR                           ; ставим в конец строки нуль-терминатор
+   264                                  
+   265 000001E3 4D31C9                      xor r9, r9                                          ; флаг отрицательного числа
+   266 000001E6 4885C0                      test rax, rax                                       ; проверяем число на отрицательность
+   267 000001E9 7906                        jns .parse_start
+   268                                  
+   269 000001EB 41B101                      mov r9b, 1                                          ; помещаем 1 в 8-битовый r9 регистр, остальные 56 бит не изменяются
+   270 000001EE 48F7D8                      neg rax                                             ; конвертируем дополнительный код к обычному
+   271                                  .parse_start:
+   272 000001F1 4883F800                    cmp rax, 0                                          ; проверяем на нулевое число                 
+   273 000001F5 7509                        jne .parse_loop
+   274 000001F7 49FFCB                      dec r11                                             ; передвигаем указатель на предпоследний индекс
+   275 000001FA 41C60330                    mov byte [r11], '0'                                 ; помещаем туда символ нуля
+   276 000001FE EB19                        jmp .check_sign                                     ; сразу переходим к следующему блоку обработки
+   277                                  .parse_loop:
+   278 00000200 4831D2                      xor rdx, rdx                                        ; обнуляем rdx - верхняя половина rdx:rax перед делением и остаток после деления
+   279 00000203 B90A000000                  mov rcx, 10                                         ; передаем 10 в регистр для div
+   280 00000208 48F7F1                      div rcx                                             ; беззнаковое деление объединненного rdx:rax на другой регистр, частное записывается в rax
+   281 0000020B 80C230                      add dl, '0'                                         ; прибавляем к остатку (цифре) код символа '0'
+   282 0000020E 49FFCB                      dec r11                                             ; передвигаем указатель влево
+   283 00000211 418813                      mov [r11], dl                                       ; сохраняем символ цифры по адресу в указателе
+   284 00000214 4885C0                      test rax, rax                                       ; проверяем частное на ноль
+   285 00000217 75E7                        jnz .parse_loop
+   286                                  .check_sign:
+   287 00000219 4584C9                      test r9b, r9b                                       ; проверяем флаг отрицательного числа
+   288 0000021C 7407                        jz .finish_return                                   ; если не установлен, выходим из функции
+   289 0000021E 49FFCB                      dec r11                                             ; передвигаем указатель влево
+   290 00000221 41C6032D                    mov byte [r11], '-'                                 ; сохраняем символ минуса по адресу в указателе
+   291                                  .finish_return:
+   292 00000225 4C89D8                      mov rax, r11                                        ; возвращаем указатель на начало строки
+   293 00000228 5D                          pop rbp
+   294 00000229 C3                          ret
+   295                                  
+   296                                  ; --------------------------------------------------
+   297                                  ; Функция strlen: вычисление длины строки
+   298                                  ; rdi = адрес строки
+   299                                  ; Возвращает в rax: длину строки
+   300                                  ; --------------------------------------------------
+   301                                  strlen:
+   302 0000022A 55                          push rbp
+   303 0000022B 4889E5                      mov rbp, rsp
+   304                                  
+   305 0000022E 4831C0                      xor rax, rax
+   306                                  .next_chr:
+   307 00000231 803C0700                    cmp byte [rdi + rax], NULL_CHAR
+   308 00000235 7405                        je .finish_return
+   309 00000237 48FFC0                      inc rax
+   310 0000023A EBF5                        jmp .next_chr
+   311                                  .finish_return:
+   312 0000023C 5D                          pop rbp
+   313 0000023D C3                          ret
+   314                                  
+   315                                  ; ----------------------------
+   316                                  ; Обработчики ошибок
+   317                                  ; ----------------------------
+   318                                  write_failed_handler:                                   ; метка обработчика ошибки write()
+   319 0000023E 4989C5                      mov r13, rax                                        ; сохраняем код ошибки
+   320                                  
+   321 00000241 B801000000                  mov rax, WRITE                                      ; системный вызов write
+   322 00000246 BF02000000                  mov rdi, STDERR                                     ; дескриптор потока ошибок
+   323 0000024B 488D35(2C000000)            lea rsi, [rel write_failed_msg]                     ; адрес сообщения
+   324 00000252 BA17000000                  mov rdx, write_failed_msg_len                       ; длина сообщения
+   325 00000257 0F05                        syscall                                             ; выполняем системный вызов write
+   326                                  
+   327 00000259 EB3A                        jmp exit                                            ; завершение программы
+   328                                  
+   329                                  write_byte_number_mismatch_handler:                     ; метка обработчика несоответствия байт
+   330 0000025B 4989C5                      mov r13, rax                                        ; сохраняем код ошибки
+   331                                  
+   332 0000025E B801000000                  mov rax, WRITE                                      ; системный вызов write
+   333 00000263 BF02000000                  mov rdi, STDERR                                     ; дескриптор потока ошибок
+   334 00000268 488D35(43000000)            lea rsi, [rel write_byte_number_mismatch_msg]       ; адрес сообщения
+   335 0000026F BA2C000000                  mov rdx, write_byte_number_mismatch_msg_len         ; длина сообщения
+   336 00000274 0F05                        syscall                                             ; выполняем системный вызов write
+   337                                  
+   338 00000276 EB1D                        jmp exit                                            ; завершение программы
+   339                                  
+   340                                  read_failed_handler:                                    ; метка обработчика ошибки read()
+   341 00000278 4989C5                      mov r13, rax                                        ; сохраняем код ошибки
+   342                                  
+   343 0000027B B801000000                  mov rax, WRITE                                      ; системный вызов write
+   344 00000280 BF02000000                  mov rdi, STDERR                                     ; дескриптор потока ошибок
+   345 00000285 488D35(6F000000)            lea rsi, [rel read_failed_msg]                      ; адрес сообщения
+   346 0000028C BA16000000                  mov rdx, read_failed_msg_len                        ; длина сообщения
+   347 00000291 0F05                        syscall                                             ; выполняем системный вызов write
+   348                                  
+   349 00000293 EB00                        jmp exit                                            ; завершение программы
+   350                                  
+   351                                  exit:                                                   ; завершение программы
+   352 00000295 4C89EF                      mov rdi, r13                                        ; код завершения программы
+   353 00000298 B83C000000                  mov rax, EXIT
+   354 0000029D 0F05                        syscall
