@@ -58,7 +58,7 @@ _start:     ; точка входа программы
     ; Чтение строки с клавиатуры
     mov rax, READ                           ; номер системного вызова read
     mov rdi, STDIN                          ; дескриптор входного потока (stdin)
-    mov rsi, input_str                      ; адрес буфера для сохранения введенной строки
+    lea rsi, [rel input_str]                ; адрес буфера для сохранения введенной строки
     mov rdx, MAX_INPUT_STR_SIZE             ; количество байтов для чтения
     syscall                                 ; выполнить системный вызов read
 
@@ -69,6 +69,8 @@ _start:     ; точка входа программы
 
     mov rdi, rbx                            ; передаем длину в rdi для функции reverse_string
     mov rsi, NEWLINE                        ; передаем завершающий байт
+    lea rdx, [rel input_str]
+    lea rcx, [rel reverse_str]
     call reverse_string                     ; вызываем функцию разворота строки
     mov rbx, rdi                            ; обновляем длину строки после разворота (rdi возвращает длину)
 
@@ -89,7 +91,7 @@ _start:     ; точка входа программы
     mov rax, WRITE                          ; системный вызов write
     mov rdx, rbx                            ; количество байт для записи
     mov rdi, STDOUT                         ; дескриптор stdout
-    mov rsi, reverse_str                    ; адрес буфера с развернутой строкой
+    lea rsi, [rel reverse_str]              ; адрес буфера с развернутой строкой
     syscall                                 ; выполняем системный вызов write
 
     test rax, rax                           ; проверка возвращенного значения rax (кол-во записанных байт)
@@ -104,6 +106,8 @@ _start:     ; точка входа программы
 ; Функция reverse_string:
 ; rdi = длина строки
 ; rsi = завершающий байт
+; rdx = адрес буфера входящей строки
+; rcx = адрес буфера перевернутой строки
 ; Использует input_str и reverse_str из .bss
 ; --------------------------------------------------
 reverse_string:
@@ -114,15 +118,15 @@ reverse_string:
     jz .end_if                              ; если строка пустая, то отступ делать не надо
 
     dec rdi                                 ; делаем отступ к последнему индексу строки
-    cmp byte [input_str + rdi], NEWLINE     ; проверяем послендний индекс на символ '\n'
+    cmp byte [rdx + rdi], NEWLINE     ; проверяем послендний индекс на символ '\n'
     je .end_byte_present                    
-    cmp byte [input_str + rdi], NULL_CHAR   ; проверяем послендний индекс на символ '\0'
+    cmp byte [rdx + rdi], NULL_CHAR   ; проверяем послендний индекс на символ '\0'
     jz .end_byte_present
 
     jmp .end_if                             ; у строки нет заканчивающего байта, отступ делать не надо
 
     .end_byte_present:
-    dec rdi                                 ; отступ для пропуска '\0' или '\n' в конце строки
+     dec rdi                                 ; отступ для пропуска '\0' или '\n' в конце строки
 
     .end_if:
 
@@ -134,15 +138,15 @@ reverse_string:
 
     mov rax, rdi                            ; rax = последний индекс строки
     sub rax, r10                            ; rax = последний индекс, смещенный на r10 влево
-    mov bl, [input_str + rax]               ; читаем символ с конца input_str
-    mov byte [reverse_str + r10], bl        ; записываем символ в reverse_str
+    mov bl, [rdx + rax]               ; читаем символ с конца input_str
+    mov byte [rcx + r10], bl        ; записываем символ в reverse_str
 
     inc r10                                 ; увеличиваем индекс назначения
     jmp .loop                               ; повторяем цикл
 
 .done:                                      ; локальная метка окончания цикла
     inc rdi                                 ; увеличиваем индекс на 1
-    mov [reverse_str + rdi], rsi            ; добавляем завершающий байт в конец reverse_str
+    mov [rcx + rdi], rsi            ; добавляем завершающий байт в конец reverse_str
 
     inc rdi                                 ; увеличиваем индекс на 1 для возврата длины строки
 
@@ -157,7 +161,7 @@ write_failed_handler:                       ; метка обработчика 
 
     mov rax, WRITE                          ; системный вызов write
     mov rdi, STDERR                         ; дескриптор потока ошибок
-    mov rsi, write_failed_msg               ; адрес сообщения
+    lea rsi, [rel write_failed_msg]               ; адрес сообщения
     mov rdx, write_failed_msg_len           ; длина сообщения
     syscall                                 ; выполняем системный вызов write
 
@@ -166,11 +170,11 @@ write_failed_handler:                       ; метка обработчика 
 write_byte_number_mismatch_handler:         ; метка обработчика несоответствия байт
     mov r13, rax                            ; сохраняем код ошибки
 
-    mov rax, WRITE                              ; системный вызов write
-    mov rdi, STDERR                             ; дескриптор потока ошибок
-    mov rsi, write_byte_number_mismatch_msg     ; адрес сообщения
-    mov rdx, write_byte_number_mismatch_msg_len ; длина сообщения
-    syscall                                     ; выполняем системный вызов write
+    mov rax, WRITE                                      ; системный вызов write
+    mov rdi, STDERR                                     ; дескриптор потока ошибок
+    lea rsi, [rel write_byte_number_mismatch_msg]       ; адрес сообщения
+    mov rdx, write_byte_number_mismatch_msg_len         ; длина сообщения
+    syscall                                             ; выполняем системный вызов write
 
     jmp exit                                ; завершение программы
 
@@ -179,7 +183,7 @@ read_failed_handler:                        ; метка обработчика 
 
     mov rax, WRITE                          ; системный вызов write
     mov rdi, STDERR                         ; дескриптор потока ошибок
-    mov rsi, read_failed_msg                ; адрес сообщения
+    lea rsi, [rel read_failed_msg]          ; адрес сообщения
     mov rdx, read_failed_msg_len            ; длина сообщения
     syscall                                 ; выполняем системный вызов write
 
